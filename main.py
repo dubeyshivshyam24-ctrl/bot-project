@@ -7,12 +7,12 @@ from database import init_db, add_user, get_user_data, complete_task_reward, red
 from keep_alive import keep_alive
 
 # --- ⚠️ CONFIGURATION ⚠️ ---
-TOKEN = "7249424955:AAHINVDcb5mMCh1p_o_iW3LDcCl3zbS-63A"  # <--- Token Yahan Dalein
+TOKEN = "7249424955:AAHINVDcb5mMCh1p_o_iW3LDcCl3zbS-63A"   # <--- APNA TOKEN YAHAN DALEIN
 
-MAIN_CHANNEL = "@PersonalFinanceWithShiv"   # Main Entry Gate
+MAIN_CHANNEL = "@PersonalFinanceWithShiv"
 ADMIN_USERNAME = "Mr_MorningStar524"
 
-# Task Channels (Sequence mein)
+# Task Channels
 TASK_CHANNELS = [
     "@IAS_PrepQuiz_Zone",
     "@UPSC_Quiz_Vault",
@@ -29,12 +29,11 @@ REFER_REWARD = 0.05
 MIN_WITHDRAW = 500
 CURRENCY = "₹"
 
-# Total Reward
 TOTAL_TASK_REWARD = REWARD_PER_CHANNEL * len(TASK_CHANNELS)
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# --- Helper: Check Subscription ---
+# --- Helper Functions ---
 async def check_subscription(user_id, channel_username, bot):
     try:
         member = await bot.get_chat_member(chat_id=channel_username, user_id=user_id)
@@ -42,45 +41,60 @@ async def check_subscription(user_id, channel_username, bot):
     except:
         return False
 
-# --- Helper: Check All Channels (For Strict Lock) ---
+async def get_next_pending_channel_index(user_id, bot):
+    for index, ch in enumerate(TASK_CHANNELS):
+        if not await check_subscription(user_id, ch, bot):
+            return index
+    return -1
+
 async def get_missing_channels(user_id, bot):
     missing = []
-    # Pehle Main Channel Check
     if not await check_subscription(user_id, MAIN_CHANNEL, bot):
         missing.append(MAIN_CHANNEL)
-    # Phir Task Channels Check
     for ch in TASK_CHANNELS:
         if not await check_subscription(user_id, ch, bot):
             missing.append(ch)
     return missing
 
-# --- Helper: Get Next Pending Task (Step-by-Step Logic) ---
-async def get_next_pending_channel_index(user_id, bot):
-    for index, ch in enumerate(TASK_CHANNELS):
-        if not await check_subscription(user_id, ch, bot):
-            return index # Ye wala channel bacha hai
-    return -1 # Sab complete hai
-
-# --- Menus ---
+# --- Premium Menus ---
 def get_main_menu_keyboard():
     keyboard = [
         [InlineKeyboardButton(f"🚀 Start Tasks | Earn {CURRENCY}{TOTAL_TASK_REWARD}", callback_data="start_task_flow")],
-        [InlineKeyboardButton("💼 Wallet", callback_data="balance"), InlineKeyboardButton("🔥 Refer & Earn", callback_data="invite")],
-        [InlineKeyboardButton("🏦 Withdraw Money", callback_data="withdraw")]
+        [InlineKeyboardButton("💼 Wallet", callback_data="balance"), InlineKeyboardButton("💎 Refer & Earn", callback_data="invite")],
+        [InlineKeyboardButton("🏦 Withdraw Funds", callback_data="withdraw")]
     ]
     return InlineKeyboardMarkup(keyboard)
+
+# --- Premium Text Generators ---
+def get_welcome_message(user_name):
+    return (
+        f"💎 **REWARD VAULT** | ᴠɪᴘ ᴅᴀsʜʙᴏᴀʀᴅ\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"👋 **Hello, {user_name}!**\n\n"
+        f"🚀 **Ready to monetize your time?**\n"
+        f"Complete premium tasks & invite friends to earn real cash instantly.\n\n"
+        f"📊 **CURRENT PAYOUT RATES:**\n"
+        f"➤ 📂 **Task Bundle:** `{CURRENCY}{TOTAL_TASK_REWARD:.2f}`\n"
+        f"➤ 👥 **Per Referral:** `{CURRENCY}{REFER_REWARD:.2f}`\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"👇 *Access your dashboard below:*"
+    )
 
 # --- START COMMAND ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = user.id
     
-    # Sirf Entry ke liye Main Channel Check (Baaki andar check honge)
+    # Entry Check
     if not await check_subscription(user_id, MAIN_CHANNEL, context.bot):
         join_text = (
-            f"🔒 **Access Restricted**\n\n"
-            f"To unlock the **Reward Vault**, please join our official channel.\n\n"
-            f"👉 **Required:** {MAIN_CHANNEL}\n"
+            f"🔒 **ACCESS RESTRICTED**\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"⚠️ **Verification Required**\n\n"
+            f"To access the **Reward Vault**, you must be a member of our official channel.\n\n"
+            f"👉 **Channel:** {MAIN_CHANNEL}\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"👇 *Join below & click Verify:*"
         )
         keyboard = [
             [InlineKeyboardButton("🚀 Join Official Channel", url=f"https://t.me/{MAIN_CHANNEL.replace('@', '')}")],
@@ -89,7 +103,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(join_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
         return
 
-    # Database Entry
+    # DB Entry
     args = context.args
     referrer_id = None
     if args and args[0].isdigit():
@@ -102,15 +116,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_message(chat_id=referrer_id, text=f"🎉 **New Referral!**\nReward: +{CURRENCY}{REFER_REWARD}", parse_mode=ParseMode.MARKDOWN)
         except: pass
 
-    welcome_text = (
-        f"👋 **Welcome, {user.first_name}!**\n\n"
-        f"Complete tasks step-by-step to earn rewards.\n\n"
-        f"📊 **Rates:**\n"
-        f"├ Task Bundle: `{CURRENCY}{TOTAL_TASK_REWARD:.2f}`\n"
-        f"└ Per Refer: `{CURRENCY}{REFER_REWARD:.2f}`\n\n"
-        f"👇 *Select an option:*"
-    )
-    await update.message.reply_text(welcome_text, reply_markup=get_main_menu_keyboard(), parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(get_welcome_message(user.first_name), reply_markup=get_main_menu_keyboard(), parse_mode=ParseMode.MARKDOWN)
 
 # --- BUTTON HANDLER ---
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -120,48 +126,53 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     bot = context.bot
     await query.answer()
 
-    # --- ENTRY VERIFICATION ---
     if data == "check_join_main":
         if await check_subscription(user_id, MAIN_CHANNEL, bot):
             await add_user(user_id)
-            await query.message.edit_text(f"✅ **Verified!**\nWelcome {query.from_user.first_name}.", reply_markup=get_main_menu_keyboard(), parse_mode=ParseMode.MARKDOWN)
+            await query.message.edit_text(get_welcome_message(query.from_user.first_name), reply_markup=get_main_menu_keyboard(), parse_mode=ParseMode.MARKDOWN)
         else:
-            await query.answer("❌ Not Joined Yet!", show_alert=True)
+            await query.answer("❌ Access Denied! Join the channel first.", show_alert=True)
 
-    # --- STEP-BY-STEP TASK FLOW ---
+    # --- STEP-BY-STEP TASKS (Premium Design) ---
     elif data == "start_task_flow" or data == "verify_step":
-        # Check karein user ne pehle hi reward le liya hai kya?
         user_data = await get_user_data(user_id)
         if user_data and user_data[2] == 1:
-             await query.message.edit_text("✅ **All Tasks Completed!**\n\nYou have already claimed the full reward.", reply_markup=get_main_menu_keyboard(), parse_mode=ParseMode.MARKDOWN)
+             await query.message.edit_text(
+                 f"✅ **TASK COMPLETED**\n━━━━━━━━━━━━━━━━\nYou have already claimed the **{CURRENCY}{TOTAL_TASK_REWARD}** reward.\nCheck back later for more.",
+                 reply_markup=get_main_menu_keyboard(), parse_mode=ParseMode.MARKDOWN)
              return
 
-        # Pata karo kaunsa channel bacha hai
         next_index = await get_next_pending_channel_index(user_id, bot)
 
-        # Agar -1 aaya, matlab sab join kar liye -> Reward Do
+        # Completion
         if next_index == -1:
             if await complete_task_reward(user_id, TOTAL_TASK_REWARD):
                 success_text = (
-                    f"🎉 **Congratulations!** 🎉\n\n"
-                    f"You have successfully completed all steps.\n"
-                    f"💵 **{CURRENCY}{TOTAL_TASK_REWARD}** has been added to your wallet!\n\n"
-                    f"Keep earning by inviting friends."
+                    f"🎉 **CONGRATULATIONS!**\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"✅ **All Steps Verification Successful.**\n\n"
+                    f"💵 **Credit Amount:** `{CURRENCY}{TOTAL_TASK_REWARD:.2f}`\n"
+                    f"💼 **Status:** Added to Wallet\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"🚀 *Keep earning by inviting friends!*"
                 )
                 await query.message.edit_text(success_text, reply_markup=get_main_menu_keyboard(), parse_mode=ParseMode.MARKDOWN)
             else:
                 await query.message.edit_text("⚠️ **Reward Already Claimed.**", reply_markup=get_main_menu_keyboard(), parse_mode=ParseMode.MARKDOWN)
             return
 
-        # Agar koi channel bacha hai, to sirf wahi dikhao
+        # Pending Step
         current_channel = TASK_CHANNELS[next_index]
         clean_name = current_channel.replace("@", "").replace("_", " ")
         
         step_text = (
-            f"📋 **Task Progress: Step {next_index + 1} of {len(TASK_CHANNELS)}**\n\n"
-            f"To proceed to the next step, you must join this channel:\n\n"
-            f"👉 **Target:** {current_channel}\n\n"
-            f"⚠️ *Click 'Verify & Next' after joining.*"
+            f"📋 **TASK PROGRESS** | Step {next_index + 1}/{len(TASK_CHANNELS)}\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"To proceed, please join the following channel:\n\n"
+            f"📢 **Target:** {current_channel}\n"
+            f"💰 **Step Value:** `{CURRENCY}{REWARD_PER_CHANNEL:.2f}`\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"👇 *Join below & Click Verify to continue:*"
         )
         
         keyboard = [
@@ -169,51 +180,61 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("✅ Verify & Next Step ➡️", callback_data="verify_step")]
         ]
         
-        # Message Update karo (Naya message nahi bhejega, usi ko badlega - Professional lagta hai)
-        try:
-            await query.message.edit_text(step_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
-        except:
-            # Agar message same hai to error na aaye
-            pass
+        try: await query.message.edit_text(step_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+        except: pass
 
-    # --- STRICT LOCK ON WITHDRAW/INVITE ---
+    # --- WALLET / INVITE / WITHDRAW (Premium Design) ---
     elif data in ["withdraw", "invite", "balance"]:
-        # User click kare to pehle check karo ki saare channels joined hain ya nahi
         missing = await get_missing_channels(user_id, bot)
-        
         if missing:
-            # Agar ek bhi channel missing hai to Block karo
             error_text = (
-                f"🚫 **Action Blocked!**\n\n"
-                f"We noticed you unsubscribed from some channels.\n"
-                f"To use this feature, you must maintain active membership.\n\n"
-                f"👇 **Please Re-Join:**\n"
+                f"🚫 **ACTION BLOCKED**\n━━━━━━━━━━━━━━━\n"
+                f"⚠️ **Membership Inactive**\n"
+                f"You have unsubscribed from required channels.\n\n"
+                f"👇 **Please Re-Join to Unlock:**\n"
             ) + "\n".join([f"🔸 {ch}" for ch in missing])
-            
-            # Re-join buttons
             btns = [[InlineKeyboardButton(f"Join {ch.replace('@','')}", url=f"https://t.me/{ch.replace('@','')}") for ch in missing]]
             btns.append([InlineKeyboardButton("🔄 Refresh Status", callback_data="check_join_main")])
-            
             await query.message.edit_text(error_text, reply_markup=InlineKeyboardMarkup(btns), parse_mode=ParseMode.MARKDOWN)
             return
 
-        # Agar sab sahi hai to normal kaam karo
         if data == "balance":
             d = await get_user_data(user_id)
-            await query.message.edit_text(f"💼 **Wallet**\n💰 Balance: `{CURRENCY}{d[0]:.2f}`\n👥 Refers: `{d[1]}`", reply_markup=get_main_menu_keyboard(), parse_mode=ParseMode.MARKDOWN)
+            bal_text = (
+                f"💳 **USER WALLET**\n"
+                f"━━━━━━━━━━━━━━━━\n"
+                f"💵 **Available Balance:** `{CURRENCY}{d[0]:.2f}`\n"
+                f"👥 **Total Referrals:** `{d[1]}`\n"
+                f"━━━━━━━━━━━━━━━━\n"
+                f"🔓 **Min Withdrawal:** `{CURRENCY}{MIN_WITHDRAW:.2f}`"
+            )
+            await query.message.edit_text(bal_text, reply_markup=get_main_menu_keyboard(), parse_mode=ParseMode.MARKDOWN)
 
         elif data == "invite":
             link = f"https://t.me/{context.bot.username}?start={user_id}"
-            await query.message.edit_text(f"🔗 **Referral Link:**\n`{link}`\n\nReward: {CURRENCY}{REFER_REWARD} per user.", reply_markup=get_main_menu_keyboard(), parse_mode=ParseMode.MARKDOWN)
+            invite_text = (
+                f"🤝 **REFER & EARN PROGRAM**\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"Invite friends and earn cash instantly!\n\n"
+                f"🎁 **Per Valid Refer:** `{CURRENCY}{REFER_REWARD:.2f}`\n"
+                f"🔗 **Your Exclusive Link:**\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"`{link}`\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"*(Tap the link above to copy)*"
+            )
+            await query.message.edit_text(invite_text, reply_markup=get_main_menu_keyboard(), parse_mode=ParseMode.MARKDOWN)
 
         elif data == "withdraw":
             d = await get_user_data(user_id)
             if d[0] >= MIN_WITHDRAW:
-                await query.message.edit_text(f"✅ **Withdrawal Open**\nMsg Admin: @{ADMIN_USERNAME}", reply_markup=get_main_menu_keyboard(), parse_mode=ParseMode.MARKDOWN)
+                await query.message.edit_text(
+                    f"✅ **WITHDRAWAL UNLOCKED**\n━━━━━━━━━━━━━━━━\nYour balance is sufficient.\n\n📩 **Send details to Admin:**\n👤 @{ADMIN_USERNAME}",
+                    reply_markup=get_main_menu_keyboard(), parse_mode=ParseMode.MARKDOWN
+                )
             else:
-                await query.answer(f"❌ Min Withdraw: {CURRENCY}{MIN_WITHDRAW}", show_alert=True)
+                await query.answer(f"❌ Balance Low! Min: {CURRENCY}{MIN_WITHDRAW}", show_alert=True)
 
-# --- ADMIN PAID (Same as before) ---
 async def admin_paid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if user.username != ADMIN_USERNAME: return
@@ -221,8 +242,8 @@ async def admin_paid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         uid, amt = int(context.args[0]), float(context.args[1])
         new_bal = await reduce_balance(uid, amt)
         if new_bal is not None:
-            await update.message.reply_text(f"✅ Paid {CURRENCY}{amt}")
-            try: await context.bot.send_message(uid, f"🏧 Withdrawal of {CURRENCY}{amt} received!")
+            await update.message.reply_text(f"✅ **Processed!**\nRem: `{CURRENCY}{new_bal}`", parse_mode=ParseMode.MARKDOWN)
+            try: await context.bot.send_message(uid, f"🏧 **PAYMENT RECEIVED**\n━━━━━━━━━━━━━━━\nAmount: `{CURRENCY}{amt}`\nStatus: ✅ Success", parse_mode=ParseMode.MARKDOWN)
             except: pass
     except: pass
 
@@ -232,7 +253,6 @@ if __name__ == '__main__':
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.run_until_complete(init_db())
-    
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("paid", admin_paid))
